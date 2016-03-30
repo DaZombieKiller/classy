@@ -1,5 +1,5 @@
-----
 ## Classy - a C++ class/struct library for Lua
+----
 ### Classy provides a C++ esque class and struct implementation for Lua, offering the following syntax:
 
     class "ExampleClass"
