@@ -17,7 +17,7 @@ class "ExampleClass"
 	end;
 }
 
-class "InheritanceExample" ("ExampleClass")
+class "InheritanceExample" : ExampleClass
 {
 	-- Inherits all methods (including constructor) from ExampleClass
 	
@@ -40,10 +40,10 @@ local tmp1 = new "ExampleClass"
 local tmp2 = new "InheritanceExample"
 print()
 
--- Calling methods, and using super() to call methods from the parent class
+-- Calling methods, and using super() to call methods from the parent classes
 tmp1:MyMethod()
 tmp2:MyMethod()
-super(tmp2, "MyMethod")
+super(tmp2, "ExampleClass", "MyMethod")
 print()
 
 -- Instantiate a struct and print the values of its members
@@ -53,8 +53,8 @@ print("x: " .. tmp3.x, "y: " .. tmp3.y, "z: " .. tmp3.z)
 print()
 
 -- Classy overrides the type() function to support custom object types
--- through the __type metamethod. You can obtain the class type and parent class type
--- via the __object and __parent metamethods, but there are no functions to automatically retrieve
+-- through the __type metamethod. You can obtain the class type and parent class types
+-- via the __object and __parents metamethods, but there are no functions to automatically retrieve
 -- these values by default. You would have to implement them yourself, using getmetatable()
 print("tmp1 type: " .. type(tmp1))
 print("tmp2 type: " .. type(tmp2))

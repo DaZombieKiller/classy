@@ -26,95 +26,121 @@ function type(obj)
 	end
 end
 
--- The name of this function can be considered misleading,
--- as it is also used to create classes in addition to structs.
--- (See the class function)
 function struct(object)
-	-- Check if struct/class already exists
+	-- Check if struct already exists
 	if rawget(_OBJECTS, object) ~= nil then
 		local t = getmetatable(rawget(_OBJECTS, object)).__type
 		error("redefinition of " .. t .. ": " .. object)
 	end
-	return function(body)
-		if type(body) == "string" then
-			-- Inherit from existing struct or class
-			local parent = body
-			local base = {}
-			for k, v in pairs(_OBJECTS[parent]) do
-				base[k] = v
-			end
+	
+	-- Create struct
+	_OBJECTS[object] = {}
+	setmetatable(_OBJECTS[object],
+	{
+		__type     = "struct",
+		__object   = object,
+		__parents  = {},
+	})
+	
+	local ft = {}
+	setmetatable(ft,
+	{
+		__call = function(t, body, _)
+			-- If inheritance is used, t is sent to the function twice
+			if _ then body = _ end
 			
-			-- Tell classy what the parent is
-			setmetatable(base, { __parent = parent })
-			
-			return function(body)
-				-- "Inherit" from actual body
+			if type(body) == "table" then
 				for k, v in pairs(body) do
-					base[k] = v
+					_OBJECTS[object][k] = v
 				end
 				
-				-- Create struct
-				return struct(object)(base)
+				-- Lock future modifications to struct
+				getmetatable(_OBJECTS[object]).__newindex = function() end
+			else
+				error("struct defined with invalid or missing body: " .. object)
 			end
-		elseif type(body) == "table" then
-			_OBJECTS[object] = body
-			local meta = getmetatable(body) or {}
-			local parent = meta.__parent
-			
-			setmetatable(_OBJECTS[object],
-			{
-				__type = "struct",
-				__object = object,
-				__parent = parent,
-				__newindex = function() end,
-			})
 			return object
-		else
-			error("struct defined with invalid or missing body: " .. object)
-		end
-	end
+		end,
+		
+		__index = function(t, parent)
+			-- Inheritance
+			local meta = getmetatable(_OBJECTS[object])
+			table.insert(meta.__parents, parent)
+			meta.__parents[parent] = true
+			for k, v in pairs(_OBJECTS[parent]) do
+				if k == parent then
+					-- Inherit constructor
+					_OBJECTS[object][object] = v
+				else
+					_OBJECTS[object][k] = v
+				end
+			end
+			return ft
+		end,
+	})
+	
+	return ft
 end
 
--- Creates a struct, and then modifies it
 function class(object)
-	-- Classes and structs are identical, except a class
-	-- requires a constructor, while a struct does not.
-	return function(body)
-		if type(body) == "string" then
-			-- Inherit from existing struct or class
-			local parent = body
-			local base = {}
-			for k, v in pairs(_OBJECTS[parent]) do
-				if k ~= parent then
-					base[k] = v
-				else
-					-- Inherit constructor
-					base[object] = v
-				end
-			end
+	-- Check if class already exists
+	if rawget(_OBJECTS, object) ~= nil then
+		local t = getmetatable(rawget(_OBJECTS, object)).__type
+		error("redefinition of " .. t .. ": " .. object)
+	end
+	
+	-- Create class
+	_OBJECTS[object] = {}
+	setmetatable(_OBJECTS[object],
+	{
+		__type     = "class",
+		__object   = object,
+		__parents  = {},
+	})
+	
+	local ft = {}
+	setmetatable(ft,
+	{
+		__call = function(t, body, _)
+			-- If inheritance is used, t is sent to the function twice
+			if _ then body = _ end
 			
-			-- Tell classy what the parent is
-			setmetatable(base, { __parent = parent })
-			
-			return function(body)
-				-- "Inherit" from actual body
+			if type(body) == "table" then
 				for k, v in pairs(body) do
-					base[k] = v
+					_OBJECTS[object][k] = v
 				end
 				
-				-- Create class
-				return class(object)(base)
+				-- Lock future modifications to class
+				getmetatable(_OBJECTS[object]).__newindex = function() end
+			else
+				error("class defined with invalid or missing body: " .. object)
 			end
-		end
+			
+			if type(_OBJECTS[object][object]) ~= "function" then
+				error("invalid or missing constructor in class: " .. object)
+			end
+			
+			return object
+		end,
 		
-		if type(body[object]) ~= "function" then
-			error("invalid or missing constructor in class: " .. object)
-		end
-		
-		struct(object)(body)
-		local meta = getmetatable(_OBJECTS[object])
-		meta.__type = "class"
-	end
+		__index = function(t, parent)
+			-- Inheritance
+			local meta = getmetatable(_OBJECTS[object])
+			table.insert(meta.__parents, parent)
+			meta.__parents[parent] = true
+			for k, v in pairs(_OBJECTS[parent]) do
+				if k == parent then
+					-- Inherit constructor
+					_OBJECTS[object][object] = v
+				else
+					_OBJECTS[object][k] = v
+				end
+			end
+			return ft
+		end,
+	})
+	
+	return ft
 end
 
 function new(object, ...)
@@ -133,19 +159,21 @@ function new(object, ...)
 	-- Attach metatable to instance
 	setmetatable(instance,
 	{
-		__parent = meta.__parent,
-		__object = meta.__object,
-		__type = meta.__type,
+		__parents = meta.__parents,
+		__object  = meta.__object,
+		__type    = meta.__type,
 	})
 	
 	return instance
 end
 
-function super(instance, method, ...)
-	-- Call a method from an instance's parent object
-	local meta = getmetatable(instance) or {}
-	if meta.__parent == nil then
-		error("object has no parent object to call from: " .. meta.__object)
+function super(instance, parent, method, ...)
+	local i_meta = getmetatable(instance)
+	local p_meta = getmetatable(_OBJECTS[parent])
+	
+	if not i_meta.__parents[parent] then
+		error(i_meta.__object .. " does not inherit from " .. p_meta.__type .. " " .. parent)
+	else
+		return _OBJECTS[parent][method](instance, ...)
 	end
-	return _OBJECTS[meta.__parent][method](instance, ...)
 end
