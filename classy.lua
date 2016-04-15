@@ -18,9 +18,14 @@ setmetatable(_OBJECTS,
 -- Override type function to support custom types
 local _type = type
 function type(obj)
-	local meta = getmetatable(obj) or {}
-	if _type(meta.__type) == "string" then
-		return meta.__type
+	local meta = {}
+	
+	if _type(obj) == "table" then
+		meta = getmetatable(obj) or meta
+	end
+	
+	if _type(rawget(meta, "__type")) == "string" then
+		return rawget(meta, "__type")
 	else
 		return _type(obj)
 	end
